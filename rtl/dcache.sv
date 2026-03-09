@@ -162,7 +162,7 @@ module dcache
             IDLE: begin
                 //only load miss trigger refill
                 //write-no-allocate, direct to write buffer, no refill
-                if (mem_req && !mem_we && !cache_hit)
+                if (mem_req && !mem_we && !cache_hit && !fwd_full_cover)
                     next_state = REFILL_REQ;
             end
 
@@ -182,5 +182,68 @@ module dcache
         endcase
     end
 
+    //fsm register state and datapath
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            state       <= IDLE;
+            cache_valid <= 'b0;
+            rf_valid    <= 'b0;
+            lru         <= 'b0;
+        end else begin
+            state <= next_state;
 
+            case (state)
+                IDLE: begin
+                   if (mem_req) begin
+                        //load
+                        if (!mem_we) begin
+                            //hit: update LRU
+                            if (cache_hit) begin
+                                lru[addr_idx]   <= ~hit_way;
+                            //miss: latch address for refill
+                            end else if (!fwd_full_cover) begin
+                                rf_tag      <= addr_tag;
+                                rf_idx      <= addr_idx;
+                                rf_word_sel <= addr_word_sel;
+                                rf_valid    <= '0;
+                            end
+                        //store
+                        end else begin
+                            //write-through
+                            if (cache_hit && !wb_full) begin
+                                for (int b = 0; b < STRB_WIDTH; b++) begin
+                                    if (wstrb[b])
+                                        cache_data[addr_idx][hit_way][addr_word_sel][b*8 +: 8] <= wdata[b*8 +: 8];
+                                end
+                                lru[addr_idx] <= ~hit_way;
+                            end
+                        end
+                    end
+                end
+
+                REFILL_REQ: begin
+
+                end
+
+                REFILL_DATA: begin
+                    if (arb_valid) begin
+                        rf_buffer[rf_word_sel]  <= arb_rdata;
+                        rf_valid[rf_word_sel]   <= 1'b1;
+                        rf_word_sel             <= rf_word_sel + 1'b1;
+                    end
+                end
+
+                REFILL_DONE: begin
+                    cache_tag[rf_idx][evict_way]   <= rf_tag;
+                    cache_valid[rf_idx][evict_way] <= 1'b1;
+
+                    for (int w = 0; w < WORDS_PER_LINE; w++)
+                        cache_data[rf_idx][evict_way][w] <= rf_buffer[w];
+
+                    lru[rf_idx] <= ~evict_way;
+                    rf_valid    <= '0;
+                end
+            endcase
+        end
+    end
 endmodule
