@@ -143,4 +143,44 @@ module dcache
         else
             evict_way = lru[rf_idx];
     end
+
+    //fsm
+    typedef enum logic [1:0] {
+        IDLE,
+        REFILL_REQ,
+        REFILL_DATA,
+        REFILL_DONE
+    } state_t;
+
+    state_t state, next_state;
+
+    //fsm next state logic
+    always_comb begin
+        next_state = state;
+
+        case (state)
+            IDLE: begin
+                //only load miss trigger refill
+                //write-no-allocate, direct to write buffer, no refill
+                if (mem_req && !mem_we && !cache_hit)
+                    next_state = REFILL_REQ;
+            end
+
+            REFILL_REQ: begin
+                if (arb_grant) 
+                    next_state = REFILL_DATA;
+            end
+
+            REFILL_DATA: begin
+                if (arb_valid && arb_last) 
+                    next_state = REFILL_DONE;
+            end
+
+            REFILL_DONE: begin
+                next_state = IDLE;
+            end
+        endcase
+    end
+
+
 endmodule
