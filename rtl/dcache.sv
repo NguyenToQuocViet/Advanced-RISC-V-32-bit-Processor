@@ -89,8 +89,58 @@ module dcache
             way_hit[w] = cache_valid[addr_idx][w] && (cache_tag[addr_idx][w] == addr_tag);
         end
 
-        cache_hit = |way_hit;
-        hit_way = way_hit[1];   //optimize
+        cache_hit   = |way_hit;
+        hit_way     = way_hit[1];   //optimize
         cache_rdata = cache_data[addr_idx][hit_way][addr_word_sel];
+    end
+
+    //store-to-load forwarding merge
+    assign fwd_addr = {addr[ADDR_WIDTH-1:WORD_OFF_BITS], {WORD_OFF_BITS{1'b0}}};
+    logic [DATA_WIDTH-1:0] merged_rdata;
+
+    always_comb begin
+        for (int b = 0; b < STRB_WIDTH; b++) begin
+            if (fwd_hit && fwd_strb[b])
+                merged_rdata[b*8 +: 8] = fwd_data[b*8 +: 8];
+            else
+                merged_rdata[b*8 +: 8] = cache_rdata[b*8 +: 8];
+        end
+    end
+
+    logic fwd_full_cover;
+    assign fwd_full_cover = fwd_hit && (&fwd_strb);
+
+    //refill buffer
+    logic [DATA_WIDTH-1:0]      rf_buffer [WORDS_PER_LINE];
+    logic [WORDS_PER_LINE-1:0]  rf_valid;
+    logic [DC_TAG_BITS-1:0]     rf_tag;
+    logic [DC_IDX_BITS-1:0]     rf_idx;
+    logic [WORD_SEL_BITS-1:0]   rf_word_sel;
+
+    logic rf_buffer_hit;
+    assign rf_buffer_hit = rf_valid[addr_word_sel] && (rf_idx == addr_idx) && (rf_tag == addr_tag);
+
+    //merge refill buffer with WB forwarding
+    logic [DATA_WIDTH-1:0] rf_merged_rdata;
+
+    always_comb begin
+        for (int b = 0; b < STRB_WIDTH; b++) begin
+            if (fwd_hit && fwd_strb[b])
+                rf_merged_rdata[b*8 +: 8] = fwd_data[b*8 +: 8];
+            else
+                rf_merged_rdata[b*8 +: 8] = rf_buffer[addr_word_sel][b*8 +: 8];
+        end
+    end
+
+    //eviction way selection
+    logic evict_way;
+
+    always_comb begin
+        if (!cache_valid[rf_idx][0])
+            evict_way = 1'b0;
+        else if (!cache_valid[rf_idx][1])
+            evict_way = 1'b1;
+        else
+            evict_way = lru[rf_idx];
     end
 endmodule
