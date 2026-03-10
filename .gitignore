@@ -1,0 +1,16 @@
+work/
+project_*/
+*.xpr
+*.cache/
+*.hw/
+*.ip_user_files/
+*.runs/
+*.sim/
+vivado*.jou
+vivado*.log
+vivado*.str
+webtalk*.log
+webtalk*.jou
+*.backup.*
+*~
+.DS_Store
