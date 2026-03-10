@@ -101,4 +101,30 @@ module write_buffer
             end
         end
     end
+
+    //store-to-load forwarding  
+    always_comb begin
+        fwd_hit      = 1'b0;
+        fwd_data     = '0;
+        fwd_strb     = '0;
+        byte_covered = '0;
+
+        for (int i = 0; i < WB_DEPTH; i++) begin
+            logic [WB_PTR_BITS-1:0] idx;
+            //scan from newest to oldest
+            idx = tail_idx - 1'b1 - WB_PTR_BITS'(i);
+
+            if (entry_valid[idx] && (entry_addr[idx] == fwd_addr)) begin
+                fwd_hit = 1'b1;
+
+                for (int b = 0; b < STRB_WIDTH; b++) begin
+                    if (entry_strb[idx][b] && !byte_covered[b]) begin
+                        fwd_data[b*8 +: 8] = entry_data[idx][b*8 +: 8];
+                        fwd_strb[b]        = 1'b1;
+                        byte_covered[b]    = 1'b1;
+                    end
+                end
+            end
+        end
+    end
 endmodule
