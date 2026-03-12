@@ -188,13 +188,13 @@ module icache
                     icache_valid= 1'b1;
                 end
 
-                icache_ready    = 1'b0; //khong nhan pc moi
+                icache_ready    = 1'b0; 
             end
 
             REFILL_DONE: begin
                 instr       = rf_buffer[pc_word_sel];
                 icache_valid= 1'b1;
-                icache_ready= 1'b1; //nhan pc moi
+                icache_ready= 1'b1; 
             end
         endcase
     end
