@@ -1,34 +1,24 @@
-# Auto-generated for project: CPU_RISC_V
-# Project creation script
-set project_name [lindex $::argv 0]
-set part_name "xc7z020clg484-1"
+# ==========================================
+# create_project.tcl
+# ==========================================
+set project_name [file tail [file dirname [pwd]]]
 
-set rtl_dir    "../rtl"
-set tb_dir     "../tb"
-set work_dir   "."
+# Tạo project (Ghi đè nếu đã tồn tại)
+create_project ${project_name} . -force -part xc7a35ticsg324-1L
 
-# Create project
-create_project -force $project_name $work_dir -part $part_name
+# 1. Nạp toàn bộ cây thư mục RTL và ép kiểu SystemVerilog
+add_files ../rtl
+set_property file_type SystemVerilog [get_files -filter {NAME =~ *.sv}]
 
-# Add RTL files (both .v and .sv)
-set rtl_files [concat [glob -nocomplain ${rtl_dir}/*.v] [glob -nocomplain ${rtl_dir}/*.sv]]
-if {[llength $rtl_files] > 0} {
-    add_files $rtl_files
+# 2. Nạp toàn bộ cây thư mục Testbench
+if {[file exists ../tb]} {
+    add_files -fileset sim_1 ../tb
+    set_property file_type SystemVerilog [get_files -of_objects [get_filesets sim_1] -filter {NAME =~ *.sv}]
 }
 
-# Add testbench files
-set tb_files [concat [glob -nocomplain ${tb_dir}/*.v] [glob -nocomplain ${tb_dir}/*.sv]]
-if {[llength $tb_files] > 0} {
-    add_files -fileset sim_1 $tb_files
-}
-
-# Set SystemVerilog file type for .sv files
-foreach file [get_files *.sv] {
-    set_property file_type SystemVerilog $file
-}
-
-# Update compile order
+# 3. Yêu cầu Vivado tự động tính toán thứ tự biên dịch (Tự nhận diện _pkg.sv)
 update_compile_order -fileset sources_1
+update_compile_order -fileset sim_1
 
-puts "Project $project_name created successfully"
-exit
+puts "SUCCESS: Project created and source files added recursively."
+close_project
