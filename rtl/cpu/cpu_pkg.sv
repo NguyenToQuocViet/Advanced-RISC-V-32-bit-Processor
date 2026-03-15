@@ -38,10 +38,10 @@ package cpu_pkg;
     localparam BTB_TAG_BITS = ADDR_WIDTH - BP_IDX_BITS - 2;
 
     //saturating counter
-    localparam PRED_BITS = 2;
+    localparam PRED_BITS    = 2;
 
-    localparam STRONGLY_NT = 2'b00;
-    localparam WEAKLY_NT   = 2'b01;
-    localparam WEAKLY_T    = 2'b10;
-    localparam STRONGLY_T  = 2'b11;
+    localparam STRONGLY_NT  = 2'b00;
+    localparam WEAKLY_NT    = 2'b01;
+    localparam WEAKLY_T     = 2'b10;
+    localparam STRONGLY_T   = 2'b11;
 endpackage
