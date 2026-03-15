@@ -31,4 +31,17 @@ package cpu_pkg;
 
     //pc reset vector
     localparam PC_RESET_VEC = 32'h0000_0000;
+ 
+    //Dynamic Branch Predictor (2-bit BHT + BTB)
+    localparam BP_ENTRIES   = 1024;
+    localparam BP_IDX_BITS  = $clog2(BP_ENTRIES);
+    localparam BTB_TAG_BITS = ADDR_WIDTH - BP_IDX_BITS - 2;
+
+    //saturating counter
+    localparam PRED_BITS = 2;
+
+    localparam STRONGLY_NT = 2'b00;
+    localparam WEAKLY_NT   = 2'b01;
+    localparam WEAKLY_T    = 2'b10;
+    localparam STRONGLY_T  = 2'b11;
 endpackage
