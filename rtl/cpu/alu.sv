@@ -14,7 +14,7 @@
 // -----------------------------------------------------------------------------
 // Project      : Advanced RISC-V 32-bit Processor
 // Module       : alu
-// Description  : Arithmetic Logic Unit 
+// Description  : Executes RV32I arithmetic, logic, shift, and compare operations
 //
 // Author       : NGUYEN TO QUOC VIET
 // Date         : 2026-03-17

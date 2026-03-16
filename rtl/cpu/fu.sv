@@ -14,7 +14,7 @@
 // -----------------------------------------------------------------------------
 // Project      : Advanced RISC-V 32-bit Processor
 // Module       : forwarding unit
-// Description  : 
+// Description  : Detects data hazards and generates forwarding mux select signals
 //
 // Author       : NGUYEN TO QUOC VIET
 // Date         : 2026-03-17
@@ -25,16 +25,16 @@ module fu
     import cpu_pkg::*;
 (
     //ex stage (register dang duoc dung)
-    input logic [4:0]   id_ex_rs1,
-    input logic [4:0]   id_ex_rs2,
+    input logic [4:0]   ex_rs1,
+    input logic [4:0]   ex_rs2,
 
     //mem stage (ai dang o mem)
-    input logic [4:0]   ex_mem_rd,
-    input logic         ex_mem_reg_we,
+    input logic [4:0]   mem_rd,
+    input logic         mem_reg_we,
 
     //wb stage (ai dang o wb)
-    input logic [4:0]   mem_wb_rd,
-    input logic         mem_wb_reg_we,
+    input logic [4:0]   wb_rd,
+    input logic         wb_reg_we,
 
     //forward signals
     output logic [1:0]  forward_a,
@@ -45,17 +45,17 @@ module fu
     // 2'b10 = EX/MEM 
     always_comb begin
         //forward_a
-        if (ex_mem_reg_we && ex_mem_rd != 5'b0 && id_ex_rs1 == ex_mem_rd)
+        if (mem_reg_we && mem_rd != 5'b0 && ex_rs1 == mem_rd)
             forward_a = 2'b10;
-        else if (mem_wb_reg_we && mem_wb_rd != 5'b0 && id_ex_rs1 == mem_wb_rd)
+        else if (wb_reg_we && wb_rd != 5'b0 && ex_rs1 == wb_rd)
             forward_a = 2'b01;
         else
             forward_a = 2'b00;
 
         //forward_b
-        if (ex_mem_reg_we && ex_mem_rd != 5'b0 && id_ex_rs2 == ex_mem_rd)
+        if (mem_reg_we && mem_rd != 5'b0 && ex_rs2 == mem_rd)
             forward_b = 2'b10;
-        else if (mem_wb_reg_we && mem_wb_rd != 5'b0 && id_ex_rs2 == mem_wb_rd)
+        else if (wb_reg_we && wb_rd != 5'b0 && ex_rs2 == wb_rd)
             forward_b = 2'b01;
         else
             forward_b = 2'b00;
