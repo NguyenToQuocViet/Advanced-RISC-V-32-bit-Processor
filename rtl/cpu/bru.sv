@@ -34,6 +34,7 @@ module bru
     //operands (post-forwarding)
     input logic [DATA_WIDTH-1:0]    src_a,  //rs1
     input logic [DATA_WIDTH-1:0]    src_b,  //rs2
+    input logic [DATA_WIDTH-1:0]    imm,
 
     input logic [ADDR_WIDTH-1:0]    pc,
 
