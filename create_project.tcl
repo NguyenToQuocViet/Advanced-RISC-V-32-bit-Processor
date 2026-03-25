@@ -4,10 +4,11 @@
 set project_name [file tail [file dirname [pwd]]]
 
 # Tạo project (Ghi đè nếu đã tồn tại)
-create_project ${project_name} . -force -part xc7a35ticsg324-1L
+create_project ${project_name} . -force -part xc7z020clg400-1
 
 # 1. Nạp toàn bộ cây thư mục RTL và ép kiểu SystemVerilog
 add_files ../rtl
+add_files -fileset constrs_1 -norecurse ../constrs/timing.xdc
 set_property file_type SystemVerilog [get_files -filter {NAME =~ *.sv}]
 
 # 2. Nạp toàn bộ cây thư mục Testbench
