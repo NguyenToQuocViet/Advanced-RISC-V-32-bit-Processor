@@ -14,11 +14,13 @@
 // -----------------------------------------------------------------------------
 // Project      : Advanced RISC-V 32-bit Processor
 // Module       : Hazard Detection Unit
-// Description  : Detects load-use hazard and generates stall/flush signals
+// Description  : Detects load-use and dcache-miss hazards, generates stall/flush
 //
 // Author       : NGUYEN TO QUOC VIET
-// Date         : 2026-03-17
-// Version      : 1.0
+// Date         : 2026-03-25
+// Version      : 1.1
+// Changes      : Added dcache-miss stall (dcache_stall output).
+//                Renamed stall -> load_use_stall for clarity.
 // -----------------------------------------------------------------------------
 
 module hdu
@@ -33,13 +35,21 @@ module hdu
     input logic [4:0]   id_rs1,
     input logic [4:0]   id_rs2,
 
-    output logic        stall,     
-    output logic        ex_flush    
+    //MEM stage dcache status
+    input logic         mem_req,
+    input logic         mem_valid,
+
+    //load-use: stall IF+ID, flush ID/EX
+    output logic        load_use_stall,
+    output logic        ex_flush,
+
+    //dcache miss: stall entire pipeline
+    output logic        dcache_stall
 );
-    logic load_use;
+    assign load_use_stall = ex_mem_req && !ex_mem_we && ex_rd != 5'b0
+                         && (ex_rd == id_rs1 || ex_rd == id_rs2);
 
-    assign load_use = ex_mem_req && !ex_mem_we && ex_rd != 5'b0 && (ex_rd == id_rs1 || ex_rd == id_rs2);
+    assign ex_flush       = load_use_stall;
 
-    assign stall    = load_use;
-    assign ex_flush = load_use;
+    assign dcache_stall   = mem_req && !mem_valid;
 endmodule
