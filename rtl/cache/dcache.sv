@@ -184,7 +184,7 @@ module dcache
         endcase
     end
 
-    //fsm register state and datapath
+    //FSM: control registers with async reset
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state       <= IDLE;
@@ -196,57 +196,62 @@ module dcache
 
             case (state)
                 IDLE: begin
-                   if (mem_req) begin
-                        //load
+                    if (mem_req) begin
                         if (!mem_we) begin
-                            //hit: update LRU
-                            if (cache_hit) begin
-                                lru[addr_idx]   <= ~hit_way;
-                            //miss: latch address for refill
-                            end else if (!fwd_full_cover) begin
+                            if (cache_hit)
+                                lru[addr_idx] <= ~hit_way;
+                            else if (!fwd_full_cover) begin
                                 rf_tag      <= addr_tag;
                                 rf_idx      <= addr_idx;
                                 rf_word_sel <= addr_word_sel;
                                 rf_valid    <= '0;
                             end
-                        //store
                         end else begin
-                            //write-through
-                            if (cache_hit && !wb_full) begin
-                                for (int b = 0; b < STRB_WIDTH; b++) begin
-                                    if (wstrb[b])
-                                        cache_data[addr_idx][hit_way][addr_word_sel*DATA_WIDTH + b*8 +: 8] <= wdata[b*8 +: 8];
-                                end
+                            if (cache_hit && !wb_full)
                                 lru[addr_idx] <= ~hit_way;
-                            end
                         end
                     end
                 end
 
-                REFILL_REQ: begin
-
-                end
-
                 REFILL_DATA: begin
                     if (arb_valid) begin
-                        rf_buffer[rf_word_sel]  <= arb_rdata;
-                        rf_valid[rf_word_sel]   <= 1'b1;
-                        rf_word_sel             <= rf_word_sel + 1'b1;
+                        rf_valid[rf_word_sel] <= 1'b1;
+                        rf_word_sel           <= rf_word_sel + 1'b1;
                     end
                 end
 
                 REFILL_DONE: begin
-                    cache_tag[rf_idx][evict_way]   <= rf_tag;
                     cache_valid[rf_idx][evict_way] <= 1'b1;
-
-                    for (int w = 0; w < WORDS_PER_LINE; w++)
-                        cache_data[rf_idx][evict_way][w*DATA_WIDTH +: DATA_WIDTH] <= rf_buffer[w];
-
                     lru[rf_idx] <= ~evict_way;
                     rf_valid    <= '0;
                 end
             endcase
         end
+    end
+
+    //FSM: data storage without async reset — allows LUTRAM inference
+    always_ff @(posedge clk) begin
+        case (state)
+            IDLE: begin
+                if (mem_req && mem_we && cache_hit && !wb_full) begin
+                    for (int b = 0; b < STRB_WIDTH; b++) begin
+                        if (wstrb[b])
+                            cache_data[addr_idx][hit_way][addr_word_sel*DATA_WIDTH + b*8 +: 8] <= wdata[b*8 +: 8];
+                    end
+                end
+            end
+
+            REFILL_DATA: begin
+                if (arb_valid)
+                    rf_buffer[rf_word_sel] <= arb_rdata;
+            end
+
+            REFILL_DONE: begin
+                cache_tag[rf_idx][evict_way] <= rf_tag;
+                for (int w = 0; w < WORDS_PER_LINE; w++)
+                    cache_data[rf_idx][evict_way][w*DATA_WIDTH +: DATA_WIDTH] <= rf_buffer[w];
+            end
+        endcase
     end
 
     //fsm output logic
