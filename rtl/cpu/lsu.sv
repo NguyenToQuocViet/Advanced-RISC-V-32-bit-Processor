@@ -39,7 +39,7 @@ module lsu
 
     //dcache interface
     output logic [ADDR_WIDTH-1:0]   dc_addr,
-    output logic                    dc_req
+    output logic                    dc_req,
     output logic                    dc_we,
     output logic [DATA_WIDTH-1:0]   dc_wdata,
     output logic [3:0]              dc_wstrb,
