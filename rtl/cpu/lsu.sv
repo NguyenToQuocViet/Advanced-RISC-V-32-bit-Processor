@@ -61,10 +61,10 @@ module lsu
         case (mem_size[1:0])
             2'b00: begin    //byte
                 case (addr[1:0])
-                    2'b00:   dc_wstrb = 4'b0001;
-                    2'b01:   dc_wstrb = 4'b0010;
-                    2'b10:   dc_wstrb = 4'b0100;
-                    default: dc_wstrb = 4'b1000;
+                    2'b00:  dc_wstrb = 4'b0001;
+                    2'b01:  dc_wstrb = 4'b0010;
+                    2'b10:  dc_wstrb = 4'b0100;
+                    2'b11:  dc_wstrb = 4'b1000;
                 endcase
             end
 
@@ -73,6 +73,7 @@ module lsu
             end
 
             2'b10:   dc_wstrb = 4'b1111;    //word
+
             default: dc_wstrb = 4'b0000;
         endcase
     end
@@ -92,7 +93,7 @@ module lsu
             2'b00:   byte_data = dc_rdata[7:0];
             2'b01:   byte_data = dc_rdata[15:8];
             2'b10:   byte_data = dc_rdata[23:16];
-            default: byte_data = dc_rdata[31:24];
+            2'b11: byte_data = dc_rdata[31:24];
         endcase
     end
 
