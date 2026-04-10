@@ -4,7 +4,7 @@
 set project_name [file tail [file dirname [pwd]]]
 
 # Tạo project (Ghi đè nếu đã tồn tại)
-create_project ${project_name} . -force -part xc7z020clg400-1
+create_project ${project_name} . -force -part xck26-sfvc784-2LV-c
 
 # 1. Nạp toàn bộ cây thư mục RTL và ép kiểu SystemVerilog
 add_files ../rtl
