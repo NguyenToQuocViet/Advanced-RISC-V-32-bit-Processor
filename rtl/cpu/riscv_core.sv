@@ -169,7 +169,7 @@ module riscv_core
             mispredict_r <= 1'b0;
             correct_pc_r <= '0;
         end else begin
-            mispredict_r <= bru_mispredict;
+            mispredict_r <= bru_mispredict && !mispredict_r;
             correct_pc_r <= bru_correct_pc;
         end
     end
