@@ -51,7 +51,10 @@ module riscv_core
     output logic [3:0]              mem_wstrb,
     input  logic [DATA_WIDTH-1:0]   mem_rdata,
     input  logic                    mem_dcache_ready,
-    input  logic                    mem_dcache_valid
+    input  logic                    mem_dcache_valid,
+
+    //refill abandon - registered mispredict to icache
+    output logic                    flush_refill_o
 );
 
     //internal wires
@@ -142,6 +145,9 @@ module riscv_core
     assign id_ex_flush  = mispredict_r | ex_flush;
     assign ex_mem_flush = mispredict_r;   //extra flush: wrong instr already in EX
     assign mem_wb_flush = 1'b0;
+
+    //expose registered mispredict to cache_subsystem
+    assign flush_refill_o = mispredict_r;
 
     //register mispredict 1 cycle: cuts 14-level combinational feedback path
     //penalty: 2→3 cycles on mispredict, but timing budget restored
