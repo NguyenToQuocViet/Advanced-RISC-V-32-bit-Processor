@@ -108,8 +108,9 @@ module fcu
     //output to IF_ID Pipeline
     assign instr_o              = (/*ex_mispredict ||*/ ignore_valid) ? NOP_INSTR : instr_i; //guard wrong-path instruction from cache
     assign if_id_pc             = pc_reg;
-    assign if_id_pred_taken     = /*ex_mispredict ? 1'b0  :*/ pred_taken;
-    assign if_id_pred_target    = /*ex_mispredict ? '0    :*/ pred_target;
+
+    assign if_id_pred_taken     = /*ex_mispredict ? 1'b0  :*/ ignore_valid ? 1'b0   : pred_taken;
+    assign if_id_pred_target    = /*ex_mispredict ? '0    :*/ ignore_valid ? '0     : pred_target;
 
     //cwf_consumed: CWF instr da duoc IF/ID capture
     //set: valid=1, ready=0, !stall -> capture 1st cycle
