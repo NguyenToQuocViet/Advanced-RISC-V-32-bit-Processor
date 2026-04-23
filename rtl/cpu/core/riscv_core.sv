@@ -14,19 +14,19 @@
 // -----------------------------------------------------------------------------
 // Project      : Advanced RISC-V 32-bit Processor
 // Module       : riscv_core
-// Description  : Top-level wrapper for the 5-stage pipeline RISC-V CPU Core.
-//                Mispredict feedback (BRU→FCU) is registered 1 cycle to cut
-//                the 14-level combinational path across the full pipeline,
-//                enabling 100MHz+ timing closure on xc7z020.
-//                Trade-off: branch mispredict penalty 2→3 cycles.
+// Description  : Top-level wrapper - pure structural wiring only.
+//                All combinational/sequential logic delegated to sub-modules:
+//                  hazard_ctrl     : stall/flush distribution
+//                  mispredict_reg  : 1-cycle EX->IF feedback FF
+//                  fwd_mux         : EX operand forwarding (3-source + WB_PC4)
+//                  alu_operand_mux : final ALU src_a/src_b mux
+//                  cu              : decode + register-field slice
 //
 // Author       : NGUYEN TO QUOC VIET
-// Date         : 2026-03-26
-// Version      : 1.1
-// Changes      : Registered bru_mispredict/bru_correct_pc (mispredict_r,
-//                correct_pc_r) to fix timing critical path EX→IF feedback.
-//                Added ex_mem_flush = mispredict_r to flush extra wrong
-//                instruction that enters EX during the extra latency cycle.
+// Date         : 2026-04-23
+// Version      : 2.0
+// Changes      : Extracted inline mux/FF/distribution into named sub-modules.
+//                Core is now wiring-only -> 7-stage migration only re-wires.
 // -----------------------------------------------------------------------------
 
 module riscv_core
@@ -57,11 +57,12 @@ module riscv_core
     output logic                    flush_refill_o
 );
 
-    //internal wires
-    //hazard control
+    //hazard / control
     logic                   load_use_stall, dcache_stall, ex_flush;
     logic                   fcu_stall, if_id_stall, id_ex_stall, ex_mem_stall, mem_wb_stall;
     logic                   if_id_flush, id_ex_flush, ex_mem_flush, mem_wb_flush;
+    logic                   mispredict_r;
+    logic [ADDR_WIDTH-1:0]  correct_pc_r;
 
     //if stage
     logic                   if_pred_taken;
@@ -99,18 +100,14 @@ module riscv_core
     logic [4:0]             ex_rs1, ex_rs2, ex_rd;
     logic                   ex_pred_taken;
     logic [ADDR_WIDTH-1:0]  ex_pred_target;
-    
+
     logic [DATA_WIDTH-1:0]  fw_src_a, fw_src_b;
     logic [DATA_WIDTH-1:0]  alu_src_a_val, alu_src_b_val;
     logic [DATA_WIDTH-1:0]  ex_alu_result;
-    
+
     logic                   bru_update_en, bru_actual_taken, bru_mispredict;
     logic [ADDR_WIDTH-1:0]  bru_actual_target, bru_correct_pc;
     logic [1:0]             forward_a, forward_b;
-
-    //registered mispredict feedback — cuts long combinational path EX→IF
-    logic                   mispredict_r;
-    logic [ADDR_WIDTH-1:0]  correct_pc_r;
 
     //mem stage
     logic [ADDR_WIDTH-1:0]  mem_pc;
@@ -119,54 +116,48 @@ module riscv_core
     logic [2:0]             mem_size;
     logic [1:0]             mem_wb_sel;
     logic [4:0]             mem_rd;
-    
+
     logic [DATA_WIDTH-1:0]  mem_rdata_ext;
     logic                   mem_valid_out, mem_ready_out;
 
-    //wb stage — mem_wb_pipeline outputs
+    //wb stage
     logic [ADDR_WIDTH-1:0]  wb_pc;
     logic [DATA_WIDTH-1:0]  wb_mem_rdata, wb_alu_result;
-    logic                   mwb_reg_we;    //intermediate: mem_wb → wb module
+    logic                   mwb_reg_we;
     logic [1:0]             wb_wb_sel;
-    logic [4:0]             mwb_rd;        //intermediate: mem_wb → wb module
-    //wb module outputs (drive RF)
+    logic [4:0]             mwb_rd;
     logic                   wb_reg_we;
     logic [4:0]             wb_rd;
     logic [DATA_WIDTH-1:0]  wb_wdata;
 
-    //hazard control logic
-    assign fcu_stall    = dcache_stall | load_use_stall;
-    assign if_id_stall  = dcache_stall | load_use_stall;
-    assign id_ex_stall  = dcache_stall;
-    assign ex_mem_stall = dcache_stall;
-    assign mem_wb_stall = dcache_stall;
+    //hazard control distribution
+    hazard_ctrl u_hazard_ctrl (
+        .load_use_stall (load_use_stall),
+        .dcache_stall   (dcache_stall),
+        .ex_flush       (ex_flush),
+        .mispredict_r   (mispredict_r),
+        .fcu_stall      (fcu_stall),
+        .if_id_stall    (if_id_stall),
+        .id_ex_stall    (id_ex_stall),
+        .ex_mem_stall   (ex_mem_stall),
+        .mem_wb_stall   (mem_wb_stall),
+        .id_ex_flush    (id_ex_flush),
+        .ex_mem_flush   (ex_mem_flush),
+        .mem_wb_flush   (mem_wb_flush)
+    );
 
-    //CWF + if_id_flush now inside FCU — removed from here
-    assign id_ex_flush  = mispredict_r | ex_flush;
-    assign ex_mem_flush = mispredict_r;   //extra flush: wrong instr already in EX
-    assign mem_wb_flush = 1'b0;
+    //mispredict checkpoint FF (EX->IF feedback cut)
+    mispredict_reg u_mispredict_reg (
+        .clk            (clk),
+        .rst_n          (rst_n),
+        .bru_mispredict (bru_mispredict),
+        .bru_correct_pc (bru_correct_pc),
+        .mispredict_r   (mispredict_r),
+        .correct_pc_r   (correct_pc_r),
+        .flush_refill_o (flush_refill_o)
+    );
 
-    //expose registered mispredict to cache_subsystem
-    assign flush_refill_o = mispredict_r;
-
-    //register mispredict 1 cycle: cuts 14-level combinational feedback path
-    //penalty: 2→3 cycles on mispredict, but timing budget restored
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            mispredict_r <= 1'b0;
-            correct_pc_r <= '0;
-        end else begin
-            mispredict_r <= bru_mispredict && !mispredict_r;
-            correct_pc_r <= bru_correct_pc;
-        end
-    end
-
-    //instruction decode
-    assign id_rs1 = id_instr[19:15];
-    assign id_rs2 = id_instr[24:20];
-    assign id_rd  = id_instr[11:7];
-
-    //hdu instance
+    //hdu
     hdu u_hdu (
         .ex_mem_req     (ex_mem_req),
         .ex_mem_we      (ex_mem_we),
@@ -180,7 +171,7 @@ module riscv_core
         .dcache_stall   (dcache_stall)
     );
 
-    //fcu instance
+    //fcu (owns if_id_flush internally: CWF + mispredict + ignore_valid)
     fcu u_fcu (
         .clk              (clk),
         .rst_n            (rst_n),
@@ -201,7 +192,7 @@ module riscv_core
         .if_id_flush      (if_id_flush)
     );
 
-    //dbp instance
+    //dbp
     dbp u_dbp (
         .clk              (clk),
         .rst_n            (rst_n),
@@ -214,7 +205,7 @@ module riscv_core
         .ex_actual_target (bru_actual_target)
     );
 
-    //if_id_pipeline instance
+    //if_id_pipeline
     if_id_pipeline u_if_id (
         .clk              (clk),
         .rst_n            (rst_n),
@@ -230,9 +221,12 @@ module riscv_core
         .id_pred_target_o (id_pred_target)
     );
 
-    //cu instance
+    //cu (now also exposes rs1/rs2/rd slice)
     cu u_cu (
         .instr            (id_instr),
+        .rs1              (id_rs1),
+        .rs2              (id_rs2),
+        .rd               (id_rd),
         .alu_op           (id_alu_op),
         .alu_src          (id_alu_src),
         .alu_src_a        (id_alu_src_a),
@@ -245,7 +239,7 @@ module riscv_core
         .jump             (id_jump)
     );
 
-    //rf instance
+    //rf
     rf u_rf (
         .clk              (clk),
         .instr            (id_instr),
@@ -256,13 +250,13 @@ module riscv_core
         .wdata            (wb_wdata)
     );
 
-    //immgen instance
+    //immgen
     immgen u_immgen (
         .instr            (id_instr),
         .imm              (id_imm)
     );
 
-    //id_ex_pipeline instance
+    //id_ex_pipeline
     id_ex_pipeline u_id_ex (
         .clk              (clk),
         .rst_n            (rst_n),
@@ -308,7 +302,7 @@ module riscv_core
         .pred_target_o    (ex_pred_target)
     );
 
-    //fu instance
+    //fu
     fu u_fu (
         .ex_rs1           (ex_rs1),
         .ex_rs2           (ex_rs2),
@@ -320,21 +314,33 @@ module riscv_core
         .forward_b        (forward_b)
     );
 
-    //forwarding muxes
-    logic [DATA_WIDTH-1:0] mem_fwd_val;
-    assign mem_fwd_val  = (mem_wb_sel == WB_PC4) ? (mem_pc + 32'd4) : mem_alu_result;
+    //fwd_mux (3-source EX forwarding + WB_PC4 select)
+    fwd_mux u_fwd_mux (
+        .forward_a        (forward_a),
+        .forward_b        (forward_b),
+        .ex_rdata1        (ex_rdata1),
+        .ex_rdata2        (ex_rdata2),
+        .mem_wb_sel       (mem_wb_sel),
+        .mem_alu_result   (mem_alu_result),
+        .mem_pc           (mem_pc),
+        .wb_wdata         (wb_wdata),
+        .fw_src_a         (fw_src_a),
+        .fw_src_b         (fw_src_b)
+    );
 
-    assign fw_src_a = (forward_a == 2'b10) ? mem_fwd_val : 
-                      (forward_a == 2'b01) ? wb_wdata : ex_rdata1;
+    //alu_operand_mux (PC vs fwd_a, imm vs fwd_b)
+    alu_operand_mux u_alu_operand_mux (
+        .alu_src          (ex_alu_src),
+        .alu_src_a        (ex_alu_src_a),
+        .fw_src_a         (fw_src_a),
+        .fw_src_b         (fw_src_b),
+        .ex_pc            (ex_pc),
+        .ex_imm           (ex_imm),
+        .alu_src_a_val    (alu_src_a_val),
+        .alu_src_b_val    (alu_src_b_val)
+    );
 
-    assign fw_src_b = (forward_b == 2'b10) ? mem_fwd_val : 
-                      (forward_b == 2'b01) ? wb_wdata : ex_rdata2;
-
-    //alu operand muxes
-    assign alu_src_a_val = ex_alu_src_a ? ex_pc  : fw_src_a;
-    assign alu_src_b_val = ex_alu_src   ? ex_imm : fw_src_b;
-
-    //alu instance
+    //alu
     alu u_alu (
         .alu_op           (ex_alu_op),
         .src_a            (alu_src_a_val),
@@ -342,11 +348,11 @@ module riscv_core
         .result           (ex_alu_result)
     );
 
-    //bru instance
+    //bru
     bru u_bru (
         .branch           (ex_branch),
         .jump             (ex_jump),
-        .alu_src          (ex_alu_src), 
+        .alu_src          (ex_alu_src),
         .funct3           (ex_mem_size),
         .src_a            (fw_src_a),
         .src_b            (fw_src_b),
@@ -361,7 +367,7 @@ module riscv_core
         .ex_correct_pc    (bru_correct_pc)
     );
 
-    //ex_mem_pipeline instance
+    //ex_mem_pipeline (rdata2_i = fw_src_b: store-data uses forwarded value)
     ex_mem_pipeline u_ex_mem (
         .clk              (clk),
         .rst_n            (rst_n),
@@ -387,7 +393,7 @@ module riscv_core
         .rd_o             (mem_rd)
     );
 
-    //lsu instance
+    //lsu
     lsu u_lsu (
         .mem_req          (mem_req_ex),
         .mem_we           (mem_we_ex),
@@ -407,7 +413,7 @@ module riscv_core
         .dc_ready         (mem_dcache_ready)
     );
 
-    //mem_wb_pipeline instance
+    //mem_wb_pipeline
     mem_wb_pipeline u_mem_wb (
         .clk              (clk),
         .rst_n            (rst_n),
@@ -427,7 +433,7 @@ module riscv_core
         .rd_o             (mwb_rd)
     );
 
-    //wb instance
+    //wb
     wb u_wb (
         .alu_result_i     (wb_alu_result),
         .mem_rdata_i      (wb_mem_rdata),

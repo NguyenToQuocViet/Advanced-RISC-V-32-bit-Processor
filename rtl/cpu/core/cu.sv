@@ -26,6 +26,11 @@ module cu
 (
     input logic [DATA_WIDTH-1:0]    instr,
 
+    //register addr slice (R/I/S/B-type field positions, fixed in RV32I)
+    output logic [4:0]              rs1,
+    output logic [4:0]              rs2,
+    output logic [4:0]              rd,
+
     //EX stage
     output logic [3:0]              alu_op,
     output logic                    alu_src,    //0=rs2,  1=imm
@@ -51,6 +56,11 @@ module cu
     assign opcode = instr[6:0];
     assign funct3 = instr[14:12];
     assign funct7 = instr[31:25];
+
+    //fixed RV32I register fields
+    assign rs1 = instr[19:15];
+    assign rs2 = instr[24:20];
+    assign rd  = instr[11:7];
 
     always_comb begin
         //defaults
