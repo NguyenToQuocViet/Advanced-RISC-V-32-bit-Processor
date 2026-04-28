@@ -75,10 +75,19 @@ module fcu2
 
     //output
     assign instr_o              = instr_i;
+
+    //tell fcu1 PC can advance: instruction valid and not a duplicate CWF
     assign cache_advance        = cache_valid && cache_ready && !cwf_consumed;
+
+    //BTB taken: redirect fcu1 to pred_target, IF2 slot becomes bubble
+    //ex_mispredict overrides — EX correction takes priority over BTB redirect
     assign if2_redirect         = pred_taken && !ex_mispredict;
     assign if2_redirect_pc      = pred_target;
+
+    //flush IF2/ID when: EX override, BTB redirect (IF2 bubble),
+    //no valid instruction, or duplicate CWF — stall holds (no flush)
     assign if2_id_flush         = ex_mispredict | if2_redirect | ((!cache_valid || cwf_consumed) && !stall);
+
     assign if2_id_pred_taken    = pred_taken;
     assign if2_id_pred_target   = pred_target;
 endmodule
