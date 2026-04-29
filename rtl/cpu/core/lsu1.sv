@@ -86,14 +86,9 @@ module lsu1
     //byte replicate for wdata
     always_comb begin
         case (mem_size)
-            //byte
-            2'b00: dc_wdata    = {4{wdata[7:0]}};
-
-            //half-word
-            2'b01: dc_wdata    = {2{wdata[15:0]}};
-
-            //word
-            2'b10: dc_wdata = wdata;
+            2'b00: dc_wdata    = {4{wdata[7:0]}};   //byte
+            2'b01: dc_wdata    = {2{wdata[15:0]}};  //half word
+            2'b10: dc_wdata = wdata;                //word
 
             default: dc_wdata    = wdata;
         endcase
